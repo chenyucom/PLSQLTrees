@@ -14,6 +14,7 @@ type Columns struct {
 	table *Tables
 	column_name string
 	column_name_alias string
+	column_sql string
 	column_id int
 	SQLlevel int
 	srccols[]*Columns
@@ -99,25 +100,36 @@ func GetColumns(str string)[]Columns{
 		khcnt -= strings.Count(cols[i],")")
 		//fmt.Println(cols[i])
 		if casecnt !=0 || khcnt != 0{
-			if len(rescols[colscnt].column_name) >0{
-				rescols[colscnt].column_name += ","
-				rescols[colscnt].column_name += cols[i]
+			if len(rescols[colscnt].column_sql) >0{
+				rescols[colscnt].column_sql += ","
 			}
-			rescols[colscnt].column_name+=cols[i]
+			rescols[colscnt].column_sql+=cols[i]
 		}else{
-			if len(rescols[colscnt].column_name) >0{
-				rescols[colscnt].column_name += ","
-				rescols[colscnt].column_name += cols[i]
+			if len(rescols[colscnt].column_sql) >0{
+				rescols[colscnt].column_sql += ","
 			}
-			rescols[colscnt].column_name+=cols[i]
+			rescols[colscnt].column_sql+=cols[i]
 			rescols[colscnt].column_id = colscnt
-			fmt.Println(rescols[colscnt])
+			//fmt.Println(rescols[colscnt])
 			colscnt++
-
 		}
 	}
 
 	return rescols[:colscnt - 1]
+}
+
+func GetColumnDetails(col *Columns) bool {
+	if col == nil {
+		return false
+	}
+
+	reg := regexp.MustCompile("[0-9A-Z_]+?$")
+	pos := reg.FindAllStringIndex(col.column_sql,1)
+	col.column_name_alias = col.column_sql[pos[0][0]:]
+	//fmt.Println(col.column_name_alias)
+
+
+	return true
 }
 
 func main(){
@@ -222,9 +234,9 @@ func main(){
 	cols = GetColumns(allsql[lastpos+bpos[1]:lastpos+epos[0]-1])
 	for i := range cols{
 		cols[i].proname = proname
-		//cols[i].table = tablename
 		cols[i].SQLlevel = currlevel
-		//fmt.Println(cols[i],cols[i].table.table_name)
+		GetColumnDetails(&cols[i])
+		fmt.Println(cols[i])
 	}
 	lastpos+=epos[0]
 	fmt.Println("-------------------")

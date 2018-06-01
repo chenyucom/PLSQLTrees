@@ -10,14 +10,20 @@ import (
 )
 
 type Columns struct {
-	table_name string
-	table_name_alias string
+	proname string
+	table *Tables
 	column_name string
 	column_name_alias string
 	column_id int
-	srccols map[string]string
+	SQLlevel int
+	srccols[]*Columns
+	tarcols []*Columns
 }
 
+type Tables struct{
+	table_name string
+	table_name_alias string
+}
 
 func getTableName(sql string)string{
 	reg_insert:=regexp.MustCompile("insert into ([0-9a-zA-Z._]+)")
@@ -79,27 +85,44 @@ func MatchPairs(str string,bdelim string,edelim string)([]int,[]int,bool){
 
 }
 
-func GetColumns(str string)[]string{
+func GetColumns(str string)[]Columns{
 	cols := strings.Split(str,",")
+	rescols := make([]Columns,len(cols))
+	colscnt :=0
+	casecnt :=0
+	khcnt :=0
+
 	for i := range cols{
-		if strings.Contains(cols[i],"CASE") == false && strings.Contains(cols[i],"(") == false{
-			fmt.Println(cols[i])
-			continue
-		}
-		casecnt := strings.Contains(cols[i],"CASE")
-		khcnt := strings.Contains(cols[i],"(")
+		casecnt += strings.Count(cols[i],"CASE")
+		khcnt += strings.Count(cols[i],"(")
+		casecnt -= strings.Count(cols[i],"END")
+		khcnt -= strings.Count(cols[i],")")
+		//fmt.Println(cols[i])
+		if casecnt !=0 || khcnt != 0{
+			if len(rescols[colscnt].column_name) >0{
+				rescols[colscnt].column_name += ","
+				rescols[colscnt].column_name += cols[i]
+			}
+			rescols[colscnt].column_name+=cols[i]
+		}else{
+			if len(rescols[colscnt].column_name) >0{
+				rescols[colscnt].column_name += ","
+				rescols[colscnt].column_name += cols[i]
+			}
+			rescols[colscnt].column_name+=cols[i]
+			rescols[colscnt].column_id = colscnt
+			fmt.Println(rescols[colscnt])
+			colscnt++
 
-		if strings.Contains(cols[i],"CASE") == true{
-			strings.Count()
 		}
-
 	}
 
-
-	return nil
+	return rescols[:colscnt - 1]
 }
 
 func main(){
+	proname := strings.ToUpper("sp_nss_trans_acctmapping")
+
 	fr,err := os.Open("D:\\我接收到的文件\\testplsqlreader.txt")
 	if err != nil {
 		fmt.Println("open file error")
@@ -110,6 +133,7 @@ func main(){
 	var allsql string
 	br := bufio.NewReader(fr)
 	iscombg := false
+	var tablename *Tables
 	for {
 		sql,err := br.ReadString('\n')
 		if err == io.EOF{
@@ -166,21 +190,44 @@ func main(){
 
 
 	}
+
 	regblank := regexp.MustCompile("([ ]*,[ ]*)")
 	allsql = regblank.ReplaceAllString(allsql,",")
 	fmt.Println(allsql)
+
+	currlevel := 1
+
 	bpos,epos,_:= MatchPairs(allsql,"INTO","\\(")
 	fmt.Println("table_name:",allsql[bpos[1]:epos[0]-1])
-	//bg:=bpos[1]
-	//ed:=epos[0]
-	//lastpos := epos[0] - 1
-	bpos,epos,_= MatchPairs(allsql,"\\(","\\)")
-	//fmt.Println(allsql[bpos[1]:epos[0]-1])
-	GetColumns(allsql[bpos[1]:epos[0]-1])
+	tablename = new(Tables)
+	tablename.table_name=allsql[bpos[1]:epos[0]-1]
+	lastpos := epos[0]
+	bpos,epos,_= MatchPairs(allsql[lastpos:],"\\(","\\)")
+	fmt.Println(allsql[lastpos+bpos[1]:lastpos+epos[0]-1])
 	fmt.Println("-------------------")
-	bpos,epos,_= MatchPairs(allsql,"SELECT","FROM")
-	//fmt.Println(allsql[bpos[1]:epos[0]-1])
-	GetColumns(allsql[bpos[1]:epos[0]-1])
+	cols:=GetColumns(allsql[lastpos+bpos[1]:lastpos+epos[0]-1])
+	for i := range cols{
+		cols[i].proname = proname
+		cols[i].table = tablename
+		cols[i].SQLlevel = currlevel
+		fmt.Println(cols[i],cols[i].table.table_name)
+	}
+	lastpos+=epos[0]+1
+	fmt.Println("-------------------")
+	currlevel++
+	fmt.Println(allsql[lastpos:])
+	fmt.Println("-------------------")
+	bpos,epos,_= MatchPairs(allsql[lastpos:],"SELECT","FROM")
+	fmt.Println(allsql[lastpos+bpos[1]:lastpos+epos[0]-1])
+	cols = GetColumns(allsql[lastpos+bpos[1]:lastpos+epos[0]-1])
+	for i := range cols{
+		cols[i].proname = proname
+		//cols[i].table = tablename
+		cols[i].SQLlevel = currlevel
+		//fmt.Println(cols[i],cols[i].table.table_name)
+	}
+	lastpos+=epos[0]
+	fmt.Println("-------------------")
 
 
 }
